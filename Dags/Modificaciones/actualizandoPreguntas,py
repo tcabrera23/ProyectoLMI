@@ -1,0 +1,57 @@
+from __future__ import print_function
+from apiclient import discovery
+from httplib2 import Http
+from oauth2client import client, file, tools
+import csv
+from googleapiclient.http import MediaFileUpload
+import requests
+from datetime import datetime, timedelta
+
+SCOPES = "https://www.googleapis.com/auth/forms.body"
+DISCOVERY_DOC = "https://forms.googleapis.com/$discovery/rest?version=v1"
+
+store = file.Storage('Archivos/token.json')
+creds = None
+if not creds or creds.invalid:
+    flow = client.flow_from_clientsecrets('Archivos/credentialsAfterGoogleDrive.json', SCOPES)
+    creds = tools.run_flow(flow, store)
+
+form_service = discovery.build('forms', 'v1', http=creds.authorize(
+    Http()), discoveryServiceUrl=DISCOVERY_DOC, static_discovery=False)
+
+# ID del formulario a actualizar
+form_id = '1LeGvaT7L3A5cVMomD6bmRB8xBZ-rmGwqpUC9j_dEYKk'
+
+# Obtener la estructura actual del formulario
+form = form_service.forms().get(formId=form_id).execute()
+response = form_service.forms().get(formId=form_id).execute()
+#print(response)
+
+# Abrimos el archivo de los partidos
+def leer_equipos(ruta_archivo):
+    equipoLocal = []
+    equipoVisitante = []
+    with open(ruta_archivo, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            equipoLocal.append(row['equipoLocal'])
+            equipoVisitante.append(row['equipoVisitante'])
+    return equipoLocal, equipoVisitante
+
+rutaArchivoJornadas = ('Archivos/jornada.csv')
+equipoLocal, equipoVisitante = leer_equipos(rutaArchivoJornadas)
+
+# Actualizar preguntas del índice 1 al 10
+for i in range(10):
+    question_title = equipoLocal[i] + " vs " + equipoVisitante[i]
+    question_options = [
+        {"value": equipoLocal[i]},
+        {"value": "Empate"},
+        {"value": equipoVisitante[i]}
+    ]
+    question = form['items'][i+1]
+    question['title'] = question_title
+    question['questionItem']['question']['choiceQuestion']['options'] = question_options
+    response = form_service.forms().batchUpdate(formId=form_id, body=response).execute()
+ #   response = form_service.forms().batchUpdate(formId=form_id, questionId=question['questionId'], body=question).execute()
+    print(f'Pregunta {i+1} actualizada: {response}')
